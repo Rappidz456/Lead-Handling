@@ -1,0 +1,47 @@
+{
+  "name": "lead-handling-backend",
+  "version": "1.0.0",
+  "description": "Lead handling API: enquiries, Groq LLM triage, protected admin list",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc",
+    "test": "vitest run"
+  },
+  "keywords": [],
+  "author": "Usman Asif",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
+    "dotenv-expand": "^1000.0.0",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.3",
+    "groq-sdk": "^1.6.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.12.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.6.6",
+    "@types/supertest": "^7.2.1",
+    "mongodb-memory-server": "^11.3.0",
+    "supertest": "^7.3.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rappidz456/Lead-Handling.git"
+  }
+}
