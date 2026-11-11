@@ -64,6 +64,8 @@ export const RETRY_OUTCOME = {
 export const DB = {
   ENQUIRY_MODEL_NAME: "Enquiry",
   STRICT_QUERY_OPTION: "strictQuery",
+  /** findOneAndUpdate option: return the document as it is after the update. */
+  RETURN_UPDATED: { returnDocument: "after" },
   SERVER_SELECTION_TIMEOUT_MS: 10_000,
   /** mongoose.connection.readyState value meaning "connected". */
   READY_STATE_CONNECTED: 1,

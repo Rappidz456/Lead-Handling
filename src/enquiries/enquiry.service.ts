@@ -47,7 +47,7 @@ export class EnquiryService {
         ],
       },
       { $set: { status: ENQUIRY_STATUS.PENDING, llmError: null } },
-      { new: true },
+      DB.RETURN_UPDATED,
     );
 
     if (!claimed) {
@@ -107,7 +107,7 @@ export class EnquiryService {
     const written = await EnquiryModel.findOneAndUpdate(
       { _id: id, status: ENQUIRY_STATUS.PENDING },
       { $set: update },
-      { new: true },
+      DB.RETURN_UPDATED,
     ).lean();
     // Another worker finished first: return what it wrote rather than overwriting it.
     const final = written ?? (await EnquiryModel.findById(id).orFail().lean());
