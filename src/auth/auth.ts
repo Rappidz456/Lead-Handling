@@ -35,6 +35,7 @@ export function authRouter(config: AuthConfig, limits: RateLimitConfig) {
     if (!userOk || !passOk) throw new HttpError(HTTP_STATUS.UNAUTHORIZED, MESSAGES.ERRORS.INVALID_CREDENTIALS);
 
     const token = jwt.sign({ role: AUTH.ADMIN_ROLE }, config.jwtSecret, {
+      algorithm: AUTH.JWT_ALGORITHM,
       subject: username,
       expiresIn: config.jwtExpiresIn as SignOptions["expiresIn"],
     });
@@ -51,7 +52,7 @@ export function requireAuth(jwtSecret: string): RequestHandler {
       return next(new HttpError(HTTP_STATUS.UNAUTHORIZED, MESSAGES.ERRORS.MISSING_TOKEN));
     }
     try {
-      const payload = jwt.verify(token, jwtSecret);
+      const payload = jwt.verify(token, jwtSecret, { algorithms: [AUTH.JWT_ALGORITHM] });
       if (typeof payload !== "object" || payload.role !== AUTH.ADMIN_ROLE) {
         return next(new HttpError(HTTP_STATUS.UNAUTHORIZED, MESSAGES.ERRORS.INVALID_TOKEN));
       }

@@ -116,6 +116,8 @@ export const AUTH = {
   TOKEN_TYPE: "Bearer",
   AUTH_HEADER_SEPARATOR: " ",
   COMPARE_HASH_ALGORITHM: "sha256",
+  /** Pinned on sign and verify, so tokens using any other algorithm (incl. "none") are rejected. */
+  JWT_ALGORITHM: "HS256",
 } as const;
 
 // ─── User-facing messages ────────────────────────────────────────────────────

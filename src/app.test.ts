@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
+import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { createApp } from "./app.js";
@@ -142,6 +143,25 @@ describe("auth + admin", () => {
       .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ status: "processed", tag: "hot", llmError: null });
+  });
+});
+
+describe("JWT algorithm", () => {
+  const listWith = (token: string) => request(app).get("/api/admin/enquiries").set("Authorization", `Bearer ${token}`);
+
+  it("issues HS256 tokens", async () => {
+    const token = await login();
+    expect(jwt.decode(token, { complete: true })?.header.alg).toBe("HS256");
+  });
+
+  it("rejects a token signed with a different algorithm, even with the right secret", async () => {
+    const hs512 = jwt.sign({ role: "admin" }, auth.jwtSecret, { algorithm: "HS512" });
+    expect((await listWith(hs512)).status).toBe(401);
+  });
+
+  it('rejects an unsigned alg "none" token', async () => {
+    const none = jwt.sign({ role: "admin" }, null, { algorithm: "none" });
+    expect((await listWith(none)).status).toBe(401);
   });
 });
 
