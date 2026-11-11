@@ -44,7 +44,7 @@ Data-shape limits (max name/message length, page size) are not deployment config
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `POST` | `/api/enquiries` | none | Submit `{ name, message }`. Returns the saved enquiry with `reply` and `tag`. |
+| `POST` | `/api/enquiries` | none | Submit `{ name, message }`. `201` with the `reply`, or `202` with a `notice` if the LLM failed (the enquiry is still saved). |
 | `POST` | `/api/auth/login` | none | `{ username, password }` → `{ token }` |
 | `GET` | `/api/admin/enquiries` | Bearer | List enquiries, newest first. Optional `?tag=hot\|warm\|cold&status=processed\|failed\|pending&page=1&limit=20` |
 | `POST` | `/api/admin/enquiries/:id/retry` | Bearer | Re-run the LLM on an enquiry, e.g. one that failed |
@@ -61,23 +61,19 @@ TOKEN=$(curl -s -X POST localhost:3000/api/auth/login -H "Content-Type: applicat
 curl localhost:3000/api/admin/enquiries -H "Authorization: Bearer $TOKEN"
 ```
 
-Example response from the submit call:
+Submit responses. The customer sees the reply but not the internal lead tag or the raw provider error:
 
-```json
-{
-  "id": "6730...",
-  "name": "Sara",
-  "message": "We need a quote for 200 branded hoodies by end of month.",
-  "status": "processed",
-  "tag": "hot",
-  "reply": "Hi Sara, thanks for reaching out! We'd be glad to quote for 200 branded hoodies...",
-  "tagReason": "Specific quantity and deadline with a direct quote request.",
-  "llmModel": "openai/gpt-oss-120b",
-  "llmError": null,
-  "createdAt": "...",
-  "updatedAt": "..."
-}
+```jsonc
+// 201 Created: saved and replied to
+{ "id": "6730...", "status": "processed", "reply": "Hi Sara, thanks for reaching out! ...", "notice": null, "createdAt": "..." }
+
+// 202 Accepted: saved, but the LLM was unavailable. An admin can retry it.
+{ "id": "6731...", "status": "failed", "reply": null,
+  "notice": "Your enquiry has been received, but we couldn't generate an automatic reply right now. Our team will follow up with you.",
+  "createdAt": "..." }
 ```
+
+The admin list returns the full record: `tag`, `tagReason`, `llmModel`, `llmError` and timestamps.
 
 ## Structure
 

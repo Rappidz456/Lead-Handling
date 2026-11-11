@@ -61,6 +61,7 @@ export const DB = {
 export const HTTP_STATUS = {
   OK: 200,
   CREATED: 201,
+  ACCEPTED: 202,
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
   NOT_FOUND: 404,
@@ -122,6 +123,11 @@ export const MESSAGES = {
   VALIDATION: {
     NAME_REQUIRED: "name is required",
     MESSAGE_REQUIRED: "message is required",
+  },
+  SUBMIT: {
+    /** Returned with 202 when the enquiry was saved but the automatic reply could not be generated. */
+    REPLY_UNAVAILABLE:
+      "Your enquiry has been received, but we couldn't generate an automatic reply right now. Our team will follow up with you.",
   },
 } as const;
 

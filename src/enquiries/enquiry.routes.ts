@@ -1,10 +1,19 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { RateLimitConfig } from "../config/types.js";
-import { ENQUIRY_STATUSES, HTTP_STATUS, LEAD_TAGS, LIMITS, MESSAGES, ROUTES, TIME } from "../constants.js";
+import {
+  ENQUIRY_STATUS,
+  ENQUIRY_STATUSES,
+  HTTP_STATUS,
+  LEAD_TAGS,
+  LIMITS,
+  MESSAGES,
+  ROUTES,
+  TIME,
+} from "../constants.js";
 import { HttpError } from "../http/errors.js";
 import { createRateLimiter } from "../http/rate-limit.js";
-import type { EnquiryService } from "./enquiry.service.js";
+import { toPublicDto, type EnquiryService } from "./enquiry.service.js";
 
 const SubmitSchema = z.object({
   name: z
@@ -35,9 +44,15 @@ export function publicEnquiryRouter(service: EnquiryService, limits: RateLimitCo
     message: MESSAGES.RATE_LIMIT.SUBMIT,
   });
 
+  /**
+   * 201 Created  – saved and replied to.
+   * 202 Accepted – saved, but the LLM failed; `notice` explains, admins can retry.
+   */
   router.post(ROUTES.ROOT, limiter, async (req, res) => {
     const input = SubmitSchema.parse(req.body);
-    res.status(HTTP_STATUS.CREATED).json(await service.submit(input));
+    const enquiry = await service.submit(input);
+    const replied = enquiry.status === ENQUIRY_STATUS.PROCESSED;
+    res.status(replied ? HTTP_STATUS.CREATED : HTTP_STATUS.ACCEPTED).json(toPublicDto(enquiry));
   });
 
   return router;

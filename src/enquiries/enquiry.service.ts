@@ -1,5 +1,13 @@
 import { isValidObjectId } from "mongoose";
-import { DB, ENQUIRY_STATUS, LIMITS, LOG_MESSAGES, type EnquiryStatus, type LeadTag } from "../constants.js";
+import {
+  DB,
+  ENQUIRY_STATUS,
+  LIMITS,
+  LOG_MESSAGES,
+  MESSAGES,
+  type EnquiryStatus,
+  type LeadTag,
+} from "../constants.js";
 import type { EnquiryTriager } from "../llm/triage.js";
 import { EnquiryModel } from "./enquiry.model.js";
 
@@ -80,7 +88,24 @@ type EnquiryDoc = {
   updatedAt: Date;
 };
 
-/** The public shape returned by the API (hides Mongo internals like __v). */
+export type EnquiryDto = ReturnType<typeof toDto>;
+
+/**
+ * What the public submit endpoint returns to the customer. The lead tag, tag reason
+ * and raw LLM error are internal and only visible on the admin endpoints.
+ */
+export function toPublicDto(enquiry: EnquiryDto) {
+  const replied = enquiry.status === ENQUIRY_STATUS.PROCESSED;
+  return {
+    id: enquiry.id,
+    status: enquiry.status,
+    reply: enquiry.reply,
+    notice: replied ? null : MESSAGES.SUBMIT.REPLY_UNAVAILABLE,
+    createdAt: enquiry.createdAt,
+  };
+}
+
+/** The full admin shape (hides Mongo internals like __v). */
 export function toDto(doc: EnquiryDoc) {
   return {
     id: String(doc._id),

@@ -6,6 +6,7 @@ import { createApp } from "./app.js";
 import { EnquiryModel } from "./enquiries/enquiry.model.js";
 import type { EnquiryTriager, TriageResult } from "./llm/triage.js";
 import type { AppConfig } from "./config/types.js";
+import { MESSAGES } from "./constants.js";
 
 /** Fake LLM so the API tests are fast, free and deterministic. */
 class FakeTriager implements EnquiryTriager {
@@ -54,11 +55,15 @@ beforeEach(async () => {
 });
 
 describe("POST /api/enquiries", () => {
-  it("saves the enquiry with the LLM reply and tag", async () => {
+  it("returns 201 with the reply, and stores the tag internally", async () => {
     const res = await request(app).post("/api/enquiries").send({ name: "Sam", message: "I need 50 units by Friday" });
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ name: "Sam", status: "processed", tag: "hot", reply: "Thanks Sam, we'll be in touch." });
-    expect(await EnquiryModel.countDocuments()).toBe(1);
+    expect(res.body).toMatchObject({ status: "processed", reply: "Thanks Sam, we'll be in touch.", notice: null });
+    // Lead scoring is internal: the customer never sees the tag.
+    expect(res.body).not.toHaveProperty("tag");
+
+    const saved = await EnquiryModel.findById(res.body.id).lean();
+    expect(saved).toMatchObject({ name: "Sam", tag: "hot", status: "processed" });
   });
 
   it("rejects invalid input", async () => {
@@ -73,11 +78,16 @@ describe("POST /api/enquiries", () => {
     expect(res.body.details).toEqual([{ field: "message", message: "message is required" }]);
   });
 
-  it("still stores the lead when the LLM fails", async () => {
+  it("returns 202 with a clear notice when the LLM fails, and still stores the lead", async () => {
     triager.fail = true;
     const res = await request(app).post("/api/enquiries").send({ name: "Ana", message: "Pricing?" });
-    expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ status: "failed", tag: null, llmError: "Groq is down" });
+    expect(res.status).toBe(202);
+    expect(res.body).toMatchObject({ status: "failed", reply: null, notice: MESSAGES.SUBMIT.REPLY_UNAVAILABLE });
+    // The raw provider error is for admins only.
+    expect(res.body).not.toHaveProperty("llmError");
+
+    const saved = await EnquiryModel.findById(res.body.id).lean();
+    expect(saved).toMatchObject({ status: "failed", llmError: "Groq is down" });
   });
 });
 
