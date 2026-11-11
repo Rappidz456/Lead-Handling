@@ -6,13 +6,17 @@ import { createApp } from "./app.js";
 import { EnquiryModel } from "./enquiries/enquiry.model.js";
 import type { EnquiryTriager, TriageResult } from "./llm/triage.js";
 import type { AppConfig } from "./config/types.js";
-import { MESSAGES } from "./constants.js";
+import { MESSAGES, RETRY } from "./constants.js";
 
 /** Fake LLM so the API tests are fast, free and deterministic. */
 class FakeTriager implements EnquiryTriager {
   model = "fake-model";
   fail = false;
+  delayMs = 0;
+  calls = 0;
   async triage({ name }: { name: string; message: string }): Promise<TriageResult> {
+    this.calls++;
+    if (this.delayMs) await new Promise((r) => setTimeout(r, this.delayMs));
     if (this.fail) throw new Error("Groq is down");
     return { reply: `Thanks ${name}, we'll be in touch.`, tag: "hot", reason: "Ready to buy" };
   }
@@ -51,6 +55,8 @@ afterAll(async () => {
 
 beforeEach(async () => {
   triager.fail = false;
+  triager.delayMs = 0;
+  triager.calls = 0;
   await EnquiryModel.deleteMany({});
 });
 
@@ -136,5 +142,64 @@ describe("auth + admin", () => {
       .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ status: "processed", tag: "hot", llmError: null });
+  });
+});
+
+describe("retry safety", () => {
+  const retry = (id: string, token: string) =>
+    request(app).post(`/api/admin/enquiries/${id}/retry`).set("Authorization", `Bearer ${token}`);
+
+  async function createFailed() {
+    triager.fail = true;
+    const res = await request(app).post("/api/enquiries").send({ name: "Ana", message: "Pricing?" });
+    triager.fail = false;
+    triager.calls = 0;
+    return res.body.id as string;
+  }
+
+  it("refuses to retry a processed enquiry and leaves it untouched", async () => {
+    const created = await request(app).post("/api/enquiries").send({ name: "Sam", message: "Buy now" });
+    const before = await EnquiryModel.findById(created.body.id).lean();
+    triager.calls = 0;
+
+    const res = await retry(created.body.id, await login());
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(MESSAGES.ERRORS.RETRY_ALREADY_PROCESSED);
+    expect(triager.calls).toBe(0);
+    expect(await EnquiryModel.findById(created.body.id).lean()).toEqual(before);
+  });
+
+  it("lets exactly one of two simultaneous retries run", async () => {
+    const id = await createFailed();
+    const token = await login();
+    triager.delayMs = 100; // keep the first retry in flight while the second arrives
+
+    const results = await Promise.all([retry(id, token), retry(id, token)]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(results.find((r) => r.status === 409)!.body.error).toBe(MESSAGES.ERRORS.RETRY_IN_PROGRESS);
+    expect(triager.calls).toBe(1);
+    expect(await EnquiryModel.findById(id).lean()).toMatchObject({ status: "processed", tag: "hot" });
+  });
+
+  it("treats a fresh pending enquiry as in progress, but a stale one as retryable", async () => {
+    const token = await login();
+    const { insertedId: fresh } = await EnquiryModel.collection.insertOne({
+      name: "Fresh", message: "x", status: "pending", createdAt: new Date(), updatedAt: new Date(),
+    });
+    const old = new Date(Date.now() - RETRY.PENDING_STALE_MS - 1000);
+    const { insertedId: stale } = await EnquiryModel.collection.insertOne({
+      name: "Stale", message: "x", status: "pending", createdAt: old, updatedAt: old,
+    });
+
+    expect((await retry(String(fresh), token)).status).toBe(409);
+    const res = await retry(String(stale), token);
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("processed");
+  });
+
+  it("returns 404 for unknown or malformed ids", async () => {
+    const token = await login();
+    expect((await retry(new mongoose.Types.ObjectId().toString(), token)).status).toBe(404);
+    expect((await retry("not-an-id", token)).status).toBe(404);
   });
 });

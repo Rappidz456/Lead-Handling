@@ -8,6 +8,7 @@ import {
   LEAD_TAGS,
   LIMITS,
   MESSAGES,
+  RETRY_OUTCOME,
   ROUTES,
   TIME,
 } from "../constants.js";
@@ -66,10 +67,27 @@ export function adminEnquiryRouter(service: EnquiryService) {
     res.json(await service.list(ListQuerySchema.parse(req.query)));
   });
 
+  /**
+   * 200 – retried (body shows whether it processed or failed again)
+   * 404 – no such enquiry
+   * 409 – already processed, or another retry is in progress
+   */
   router.post(ROUTES.RETRY, async (req, res) => {
-    const enquiry = await service.retry(req.params.id);
-    if (!enquiry) throw new HttpError(HTTP_STATUS.NOT_FOUND, MESSAGES.ERRORS.ENQUIRY_NOT_FOUND);
-    res.json(enquiry);
+    const result = await service.retry(req.params.id);
+    switch (result.outcome) {
+      case RETRY_OUTCOME.RETRIED:
+        res.json(result.enquiry);
+        return;
+      case RETRY_OUTCOME.NOT_FOUND:
+        throw new HttpError(HTTP_STATUS.NOT_FOUND, MESSAGES.ERRORS.ENQUIRY_NOT_FOUND);
+      case RETRY_OUTCOME.CONFLICT:
+        throw new HttpError(
+          HTTP_STATUS.CONFLICT,
+          result.status === ENQUIRY_STATUS.PROCESSED
+            ? MESSAGES.ERRORS.RETRY_ALREADY_PROCESSED
+            : MESSAGES.ERRORS.RETRY_IN_PROGRESS,
+        );
+    }
   });
 
   return router;

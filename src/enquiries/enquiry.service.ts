@@ -5,6 +5,8 @@ import {
   LIMITS,
   LOG_MESSAGES,
   MESSAGES,
+  RETRY,
+  RETRY_OUTCOME,
   type EnquiryStatus,
   type LeadTag,
 } from "../constants.js";
@@ -19,16 +21,43 @@ export class EnquiryService {
    * Saving first means an LLM outage never loses a lead: it is stored as `failed`
    * and can be retried from the admin endpoint.
    */
-  async submit(input: { name: string; message: string }) {
+  async submit(input: { name: string; message: string }): Promise<EnquiryDto> {
     const enquiry = await EnquiryModel.create({ ...input, status: ENQUIRY_STATUS.PENDING });
-    return this.process(enquiry.id);
+    return this.process(enquiry.id, enquiry.name, enquiry.message);
   }
 
-  async retry(id: string) {
-    if (!isValidObjectId(id)) return null;
-    const exists = await EnquiryModel.exists({ _id: id });
-    if (!exists) return null;
-    return this.process(id);
+  /**
+   * Re-runs the LLM on an enquiry that failed, or one stuck in `pending` for longer than
+   * RETRY.PENDING_STALE_MS (e.g. the process crashed mid-call).
+   *
+   * The claim is a single atomic findOneAndUpdate that moves the enquiry to `pending`.
+   * Concurrent retries race on that update; exactly one wins, the rest get `conflict`.
+   * Processed enquiries are never touched.
+   */
+  async retry(id: string): Promise<RetryResult> {
+    if (!isValidObjectId(id)) return { outcome: RETRY_OUTCOME.NOT_FOUND };
+
+    const staleBefore = new Date(Date.now() - RETRY.PENDING_STALE_MS);
+    const claimed = await EnquiryModel.findOneAndUpdate(
+      {
+        _id: id,
+        $or: [
+          { status: ENQUIRY_STATUS.FAILED },
+          { status: ENQUIRY_STATUS.PENDING, updatedAt: { $lt: staleBefore } },
+        ],
+      },
+      { $set: { status: ENQUIRY_STATUS.PENDING, llmError: null } },
+      { new: true },
+    );
+
+    if (!claimed) {
+      const current = await EnquiryModel.findById(id).select({ status: 1 }).lean();
+      if (!current) return { outcome: RETRY_OUTCOME.NOT_FOUND };
+      return { outcome: RETRY_OUTCOME.CONFLICT, status: current.status };
+    }
+
+    const enquiry = await this.process(claimed.id, claimed.name, claimed.message);
+    return { outcome: RETRY_OUTCOME.RETRIED, enquiry };
   }
 
   async list(filter: { tag?: LeadTag; status?: EnquiryStatus; page: number; limit: number }) {
@@ -48,31 +77,48 @@ export class EnquiryService {
     return { items: items.map(toDto), page: filter.page, limit: filter.limit, total };
   }
 
-  private async process(id: string) {
-    const enquiry = await EnquiryModel.findById(id).orFail();
+  /**
+   * Runs the LLM for an enquiry this caller has claimed (status `pending`) and writes the outcome.
+   * The write only applies while the enquiry is still `pending`, so a result can never
+   * overwrite one written by another worker.
+   */
+  private async process(id: string, name: string, message: string): Promise<EnquiryDto> {
+    let update: Record<string, unknown>;
     try {
-      const result = await this.triager.triage({ name: enquiry.name, message: enquiry.message });
-      enquiry.set({
+      const result = await this.triager.triage({ name, message });
+      update = {
         status: ENQUIRY_STATUS.PROCESSED,
         reply: result.reply,
         tag: result.tag,
         tagReason: result.reason || null,
         llmModel: this.triager.model,
         llmError: null,
-      });
+      };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(LOG_MESSAGES.TRIAGE_FAILED(id, message));
-      enquiry.set({
+      const error = err instanceof Error ? err.message : String(err);
+      console.error(LOG_MESSAGES.TRIAGE_FAILED(id, error));
+      update = {
         status: ENQUIRY_STATUS.FAILED,
         llmModel: this.triager.model,
-        llmError: message.slice(0, LIMITS.STORED_ERROR_MAX_LENGTH),
-      });
+        llmError: error.slice(0, LIMITS.STORED_ERROR_MAX_LENGTH),
+      };
     }
-    await enquiry.save();
-    return toDto(enquiry.toObject());
+
+    const written = await EnquiryModel.findOneAndUpdate(
+      { _id: id, status: ENQUIRY_STATUS.PENDING },
+      { $set: update },
+      { new: true },
+    ).lean();
+    // Another worker finished first: return what it wrote rather than overwriting it.
+    const final = written ?? (await EnquiryModel.findById(id).orFail().lean());
+    return toDto(final);
   }
 }
+
+export type RetryResult =
+  | { outcome: typeof RETRY_OUTCOME.NOT_FOUND }
+  | { outcome: typeof RETRY_OUTCOME.CONFLICT; status: EnquiryStatus }
+  | { outcome: typeof RETRY_OUTCOME.RETRIED; enquiry: EnquiryDto };
 
 type EnquiryDoc = {
   _id: unknown;

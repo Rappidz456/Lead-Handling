@@ -45,6 +45,20 @@ export const LIMITS = {
   PAGE_SIZE_MAX: 100,
 } as const;
 
+export const RETRY = {
+  /**
+   * A `pending` enquiry older than this is treated as abandoned (e.g. the process crashed
+   * mid-call) and may be retried. Comfortably above LLM timeout × (retries + 1).
+   */
+  PENDING_STALE_MS: 5 * 60_000,
+} as const;
+
+export const RETRY_OUTCOME = {
+  RETRIED: "retried",
+  NOT_FOUND: "not_found",
+  CONFLICT: "conflict",
+} as const;
+
 // ─── Database ────────────────────────────────────────────────────────────────
 
 export const DB = {
@@ -65,6 +79,7 @@ export const HTTP_STATUS = {
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
   NOT_FOUND: 404,
+  CONFLICT: 409,
   INTERNAL_SERVER_ERROR: 500,
 } as const;
 export type HttpStatus = (typeof HTTP_STATUS)[keyof typeof HTTP_STATUS];
@@ -109,6 +124,8 @@ export const MESSAGES = {
   ERRORS: {
     NOT_FOUND: "Not found",
     ENQUIRY_NOT_FOUND: "Enquiry not found",
+    RETRY_ALREADY_PROCESSED: "Enquiry has already been processed and cannot be retried",
+    RETRY_IN_PROGRESS: "Enquiry is already being processed, try again shortly",
     VALIDATION_FAILED: "Validation failed",
     INVALID_JSON_BODY: "Request body must be valid JSON",
     INTERNAL: "Internal server error",
