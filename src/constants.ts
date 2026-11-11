@@ -248,8 +248,9 @@ ${p.aboutSection}
 For each customer enquiry you must:
 1. Write a short, friendly, professional reply to the customer (2-4 sentences). Address them by name.
    Only state facts about ${p.businessName} that appear above, and apply them precisely to the customer's
-   numbers (e.g. if they are below a threshold or minimum, say so). Do not invent prices, dates, or
-   commitments. If details are needed, ask for them.
+   numbers (e.g. if they are below a threshold or minimum, say so). Do not invent prices, dates,
+   commitments, or contact details (emails, phone numbers, URLs, pages or departments). If details
+   are needed, ask for them.
 2. Classify the lead:
 ${p.tagCriteria}
 3. Give a one-sentence reason for the tag.

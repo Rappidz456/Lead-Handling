@@ -9,6 +9,10 @@ describe("buildSystemPrompt", () => {
     expect(p).toContain('"hot" | "warm" | "cold"');
   });
 
+  it("forbids inventing contact details", () => {
+    expect(buildSystemPrompt({ name: "Acme", description: "" })).toMatch(/Do not invent[\s\S]*contact details/);
+  });
+
   it("omits the about line when no description is set", () => {
     expect(buildSystemPrompt({ name: "Acme", description: "" })).not.toContain("About Acme");
   });
