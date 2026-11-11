@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "typecheck": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:live": "tsx scripts/live-check.ts"
   },
   "keywords": [],
   "author": "Usman Asif",

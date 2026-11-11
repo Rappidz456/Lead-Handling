@@ -16,6 +16,8 @@ npm run dev               # watch mode on http://localhost:3000
 
 Production build: `npm run build && npm start`. Tests: `npm test`. These use an in-memory MongoDB and a fake LLM, so they don't need any keys. Type check: `npm run typecheck`. GitHub Actions runs typecheck, tests and build on Node 22 and 24 for every push and pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
+**Live end-to-end check:** `npm run check:live` runs the app against the real Groq API and the MongoDB in your `.env`. It submits hot, warm and cold leads, triggers a genuine LLM failure (to check the `202`), fires two simultaneous retries, and checks auth. It prints PASS/FAIL per check and deletes everything it created. It makes about 5 Groq calls.
+
 If a required env var is missing, the server refuses to start and lists what's missing.
 
 ## Configuration

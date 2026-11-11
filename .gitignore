@@ -3,3 +3,6 @@ dist/
 .env
 *.log
 coverage/
+
+# Local output of npm run check:live (contains DB host)
+proof/
