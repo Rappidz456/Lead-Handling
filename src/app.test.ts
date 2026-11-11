@@ -44,14 +44,18 @@ async function login() {
   return res.body.token as string;
 }
 
+// Starting mongod can exceed Vitest's 10s default (first-run binary download in CI,
+// antivirus scanning on Windows), which would skip the whole suite.
+const MONGO_STARTUP_TIMEOUT_MS = 60_000;
+
 beforeAll(async () => {
   mongo = await MongoMemoryServer.create();
   await mongoose.connect(mongo.getUri());
-});
+}, MONGO_STARTUP_TIMEOUT_MS);
 
 afterAll(async () => {
   await mongoose.disconnect();
-  await mongo.stop();
+  await mongo?.stop();
 });
 
 beforeEach(async () => {

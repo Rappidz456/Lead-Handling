@@ -1,10 +1,12 @@
 # Lead Handling Backend
 
+[![CI](https://github.com/Rappidz456/Lead-Handling/actions/workflows/ci.yml/badge.svg)](https://github.com/Rappidz456/Lead-Handling/actions/workflows/ci.yml)
+
 A small Node + TypeScript API that takes in customer enquiries, stores them in MongoDB, and uses an LLM (`openai/gpt-oss-120b` on Groq) to write a short reply and tag each lead as **hot**, **warm** or **cold**. A login-protected admin endpoint lists every enquiry with its reply and tag.
 
 ## Run it
 
-Requirements: Node 20+, a MongoDB connection string (Atlas free tier or local), and a [Groq API key](https://console.groq.com/keys).
+Requirements: Node 22.12+, a MongoDB connection string (Atlas free tier or local), and a [Groq API key](https://console.groq.com/keys).
 
 ```bash
 npm install
@@ -12,7 +14,7 @@ cp .env.example .env      # then fill in MONGODB_URI, GROQ_API_KEY, ADMIN_PASSWO
 npm run dev               # watch mode on http://localhost:3000
 ```
 
-Production build: `npm run build && npm start`. Tests: `npm test`. These use an in-memory MongoDB and a fake LLM, so they don't need any keys. Type check: `npm run typecheck`.
+Production build: `npm run build && npm start`. Tests: `npm test`. These use an in-memory MongoDB and a fake LLM, so they don't need any keys. Type check: `npm run typecheck`. GitHub Actions runs typecheck, tests and build on Node 22 and 24 for every push and pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
 If a required env var is missing, the server refuses to start and lists what's missing.
 
